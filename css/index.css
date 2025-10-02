@@ -1,0 +1,70 @@
+:root{
+  --bg:#060a14; 
+  --text:#e2e8f0; 
+  --muted:#94a3b8; 
+  --card:#111827; 
+  --border:#1f2937;
+}
+
+*{ box-sizing:border-box }
+html,body{ margin:0; padding:0 }
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height:1.6;
+}
+
+.container{ max-width:980px; margin:0 auto; padding:24px }
+
+.header h1{ margin:0 0 8px }
+.hint{ color:var(--muted); margin:0 0 16px }
+#status{ color:var(--muted) }
+#status.is-loading{ opacity:.8 }
+
+/* ===== Toolbar: search + limit + reload ===== */
+.toolbar{
+  display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:6px 0 10px;
+}
+
+.search{ display:flex; gap:8px; align-items:center; }
+.search input[type="search"]{
+  min-width:240px; padding:8px 10px; border-radius:10px;
+  border:1px solid var(--border); background:#0b1324; color:var(--text);
+}
+.search button{
+  padding:8px 12px; border-radius:10px; border:1px solid var(--border);
+  background:#0b2447; color:var(--text); cursor:pointer;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.search button:hover{ transform:translateY(-1px); box-shadow:0 6px 16px rgba(0,0,0,.25) }
+
+.limit{ display:flex; gap:6px; align-items:center; }
+.limit select{
+  padding:8px 10px; border-radius:10px; border:1px solid var(--border);
+  background:#0b1324; color:var(--text);
+}
+
+/* ===== Grid de tarjetas ===== */
+#dog-list{
+  list-style:none; padding:0; margin:0;
+  display:grid; gap:16px; grid-template-columns:1fr;
+}
+@media (min-width:640px){ #dog-list{ grid-template-columns:repeat(2,1fr); } }
+@media (min-width:1024px){ #dog-list{ grid-template-columns:repeat(3,1fr); } }
+
+.card{
+  background:var(--card); border:1px solid var(--border);
+  border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
+}
+.card img{ width:100%; height:220px; object-fit:cover; display:block }
+.card .body{ padding:12px 14px }
+.card h3{ margin:0 0 6px; font-size:1.05rem }
+.meta{ color:var(--muted); margin:6px 0 0; font-size:0.95rem }
+.more{ margin-top:8px; font-size:0.9rem }
+.more a{ color:var(--text); text-decoration:none; border-bottom:1px dashed var(--muted) }
+.more a:hover{ opacity:.85 }
+
+/* ===== Error ===== */
+#error{ color:#fca5a5; font-weight:600; margin-top:10px }

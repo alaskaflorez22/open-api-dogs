@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Open API Project – TheDogAPI</title>
+  <meta name="description" content="Dog breeds gallery using TheDogAPI (image + breed data).">
+  <link rel="stylesheet" href="css/index.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>Dog Breeds (TheDogAPI)</h1>
+
+      <div class="toolbar">
+        <!-- Buscar por nombre de raza -->
+        <form id="search-form" class="search" autocomplete="off">
+          <input id="q" type="search" placeholder="Search breed (e.g., labrador)" aria-label="Search breed" />
+          <button type="submit" aria-label="Run search">Search</button>
+          <button id="clear" type="button" aria-label="Clear search">Clear</button>
+        </form>
+
+        <!-- Selector de cantidad -->
+        <label class="limit">
+          <span>Limit:</span>
+          <select id="limit" aria-label="Number of results">
+            <option value="6">6</option>
+            <option value="12" selected>12</option>
+            <option value="18">18</option>
+            <option value="24">24</option>
+          </select>
+        </label>
+
+        <!-- Reload manual -->
+        <button id="reload" type="button" aria-label="Reload dog list">Reload</button>
+        <span id="status" aria-live="polite">Loading…</span>
+      </div>
+
+      <p class="hint">
+        Each card shows an image + at least two data points (temperament &amp; life span). Weight is included when available.
+      </p>
+    </header>
+
+    <ul id="dog-list" aria-live="polite"></ul>
+    <p id="error" hidden role="status"></p>
+  </main>
+
+  <script src="js/index.js" defer></script>
+  <noscript>This page needs JavaScript enabled.</noscript>
+</body>
+</html>
