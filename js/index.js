@@ -1,15 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
-  // === Config ===
+  // === Setting ===
   const API_BASE = 'https://api.thedogapi.com/v1';
-  // (Opcional) pega tu API key gratuita:
-  const API_KEY  = ''; // e.g. 'live_XXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+  const API_KEY  = ''; 
   const headers  = API_KEY ? { 'x-api-key': API_KEY } : {};
 
-  // === Estado ===
+  //  UI
   const state = {
     limit: 12,
-    query: '' // nombre de raza (vacío = feed general)
+    query: '',
+    view: 'images', // 'images' | 'breeds'
   };
+
+  
+  let controller = null;
+  function abortPending(){
+    if (controller) controller.abort();
+    controller = new AbortController();
+    return controller.signal;
+  }
 
   // === DOM ===
   const listEl    = document.getElementById('dog-list');
@@ -21,7 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearBt   = document.getElementById('clear');
   const limitSel  = document.getElementById('limit');
 
-  // === Utils ===
+  const tabImages = document.getElementById('tab-images');
+  const tabBreeds = document.getElementById('tab-breeds');
+
   function setStatus(text, isLoading = false){
     statusEl.textContent = text;
     statusEl.classList.toggle('is-loading', isLoading);
@@ -32,12 +42,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function hideError(){ errorEl.hidden = true; }
 
+  // ===== Render helpers =====
   function createCard({ url, breed }) {
     const li = document.createElement('li');
     li.className = 'card';
 
     const img = document.createElement('img');
-    img.src = url;
+    img.src = url || 'https://placehold.co/600x400?text=No+Image';
     img.alt = breed?.name ? `${breed.name} dog` : 'Dog';
 
     const body = document.createElement('div');
@@ -46,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const h3 = document.createElement('h3');
     h3.textContent = breed?.name ?? 'Unknown breed';
 
-    // Mínimo 2 datapoints: temperament + life_span (extra: weight)
     const meta = document.createElement('p');
     meta.className = 'meta';
     const temperament = breed?.temperament ? `Temperament: ${breed.temperament}` : '';
@@ -85,126 +95,188 @@ document.addEventListener('DOMContentLoaded', () => {
     setStatus(`Loaded (${items.length})`, false);
   }
 
-  // === API helpers ===
+  // Render for visit "breeds" 
+  function renderBreeds(breeds){
+    listEl.innerHTML = '';
+    for (const b of breeds) {
+      const url = b.image?.url || ''; 
+      const card = createCard({ url, breed: b });
+      listEl.appendChild(card);
+    }
+    setStatus(`Loaded (${breeds.length})`, false);
+  }
 
-  // 1) Feed aleatorio con razas incluidas
-  function fetchRandomDogs(limit){
+  // === API helpers ===
+  function fetchRandomDogs(limit, signal){
     const url = `${API_BASE}/images/search?has_breeds=1&include_breeds=1&limit=${limit}`;
-    return fetch(url, { headers }).then(res => {
+    return fetch(url, { headers, signal }).then(res => {
       if (!res.ok) throw new Error(`TheDogAPI images/search error (${res.status})`);
       return res.json();
     });
   }
 
-  // 2) Imágenes por raza específica
-  function fetchDogsByBreedId(breedId, limit){
+  function fetchDogsByBreedId(breedId, limit, signal){
     const url = `${API_BASE}/images/search?breed_ids=${breedId}&include_breeds=1&limit=${limit}`;
-    return fetch(url, { headers }).then(res => {
+    return fetch(url, { headers, signal }).then(res => {
       if (!res.ok) throw new Error(`TheDogAPI images/search (by breed) error (${res.status})`);
       return res.json();
     });
   }
 
-  // 3) Buscar razas por nombre (para el buscador)
-  function searchBreedsByName(q){
+  function searchBreedsByName(q, signal){
     const url = `${API_BASE}/breeds/search?q=${encodeURIComponent(q)}`;
-    return fetch(url, { headers }).then(res => {
+    return fetch(url, { headers, signal }).then(res => {
       if (!res.ok) throw new Error(`TheDogAPI breeds/search error (${res.status})`);
       return res.json();
     });
   }
 
-  // 4) Fallback: si una imagen no trae breeds, consultamos /images/{id}
-  async function enrichWithBreeds(items){
+  // List of breeds 
+  function fetchBreedsList(signal){
+    const url = `${API_BASE}/breeds`;
+    return fetch(url, { headers, signal }).then(res => {
+      if (!res.ok) throw new Error(`TheDogAPI /breeds error (${res.status})`);
+      return res.json();
+    });
+  }
+
+  
+  async function enrichWithBreeds(items, signal){
     const enriched = await Promise.all(items.map(async (it) => {
       if (Array.isArray(it.breeds) && it.breeds.length) return it;
       try {
-        const det = await fetch(`${API_BASE}/images/${it.id}`, { headers }).then(r => {
+        const det = await fetch(`${API_BASE}/images/${it.id}`, { headers, signal }).then(r => {
           if (!r.ok) throw new Error(`images/${it.id} error (${r.status})`);
           return r.json();
         });
         return { ...it, breeds: det.breeds || [] };
       } catch {
-        return it; // si falla, regresamos como vino
+        return it;
       }
     }));
     return enriched;
   }
 
-  // === Controlador principal ===
-  function loadDogs(){
+  // === Loaders ===
+  async function loadImagesView(){
     hideError();
     setStatus('Loading…', true);
+    const signal = abortPending();
 
-    // Sin query -> feed general
-    if (!state.query) {
-      fetchRandomDogs(state.limit)
-        .then(async data => {
-          console.log('TheDogAPI images/search:', data);
-          const filled = await enrichWithBreeds(data);
-          if (!Array.isArray(filled) || filled.length === 0) {
-            showError('No dog data found.');
-            setStatus('Done', false);
-            return;
-          }
-          renderDogs(filled);
-        })
-        .catch(err => {
-          console.error(err);
-          showError('Could not load dog data right now. Please try again later.');
-          setStatus('Error', false);
-        });
-      return;
-    }
-
-    // Con query -> buscar raza y luego imágenes por breed_id
-    searchBreedsByName(state.query)
-      .then(breeds => {
-        console.log('TheDogAPI breeds/search:', breeds);
-        if (!Array.isArray(breeds) || breeds.length === 0) {
-          showError(`No breeds found for "${state.query}".`);
-          setStatus('Done', false);
-          return [];
-        }
-        return fetchDogsByBreedId(breeds[0].id, state.limit);
-      })
-      .then(async data => {
-        if (!Array.isArray(data) || data.length === 0) {
-          showError(`No images found for "${state.query}".`);
+    try {
+      if (!state.query) {
+        const data = await fetchRandomDogs(state.limit, signal);
+        const filled = await enrichWithBreeds(data, signal);
+        if (!Array.isArray(filled) || filled.length === 0) {
+          showError('No dog data found.');
           setStatus('Done', false);
           return;
         }
-        console.log('TheDogAPI images/search (by breed):', data);
-        const filled = await enrichWithBreeds(data);
         renderDogs(filled);
-      })
-      .catch(err => {
-        console.error(err);
-        showError('Could not load dog data right now. Please try again later.');
-        setStatus('Error', false);
-      });
+        return;
+      }
+
+      // with query: search for breed and then images of that breed
+      const breeds = await searchBreedsByName(state.query, signal);
+      if (!Array.isArray(breeds) || breeds.length === 0) {
+        showError(`No breeds found for "${state.query}".`);
+        setStatus('Done', false);
+        return;
+      }
+      const data = await fetchDogsByBreedId(breeds[0].id, state.limit, signal);
+      if (!Array.isArray(data) || data.length === 0) {
+        showError(`No images found for "${state.query}".`);
+        setStatus('Done', false);
+        return;
+      }
+      const filled = await enrichWithBreeds(data, signal);
+      renderDogs(filled);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.error(err);
+      showError('Could not load dog data right now. Please try again later.');
+      setStatus('Error', false);
+    }
   }
 
-  // === Eventos ===
-  reloadBt.addEventListener('click', loadDogs);
+  async function loadBreedsView(){
+    hideError();
+    setStatus('Loading…', true);
+    const signal = abortPending();
+
+    try {
+      // If there is a query, use /breeds/search; if not, use /breeds (and trim by limit).
+      if (state.query) {
+        const breeds = await searchBreedsByName(state.query, signal);
+        if (!Array.isArray(breeds) || breeds.length === 0) {
+          showError(`No breeds found for "${state.query}".`);
+          setStatus('Done', false);
+          return;
+        }
+        // /breeds/search 
+        renderBreeds(breeds.slice(0, state.limit));
+        return;
+      }
+
+      const full = await fetchBreedsList(signal);
+      if (!Array.isArray(full) || full.length === 0) {
+        showError('No breeds found.');
+        setStatus('Done', false);
+        return;
+      }
+      renderBreeds(full.slice(0, state.limit));
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.error(err);
+      showError('Could not load breeds right now. Please try again later.');
+      setStatus('Error', false);
+    }
+  }
+
+  function loadView(){
+    if (state.view === 'images') return loadImagesView();
+    return loadBreedsView();
+  }
+
+  // === UI wiring ===
+  function setActiveTab(view){
+    state.view = view;
+    tabImages.setAttribute('aria-pressed', String(view === 'images'));
+    tabBreeds.setAttribute('aria-pressed', String(view === 'breeds'));
+  }
+
+  tabImages?.addEventListener('click', () => {
+    if (state.view === 'images') return;
+    setActiveTab('images');
+    loadView();
+  });
+
+  tabBreeds?.addEventListener('click', () => {
+    if (state.view === 'breeds') return;
+    setActiveTab('breeds');
+    loadView();
+  });
+
+  reloadBt.addEventListener('click', loadView);
 
   formEl.addEventListener('submit', (e) => {
     e.preventDefault();
     state.query = qInput.value.trim();
-    loadDogs();
+    loadView();
   });
 
   clearBt.addEventListener('click', () => {
     qInput.value = '';
     state.query = '';
-    loadDogs();
+    loadView();
   });
 
   limitSel.addEventListener('change', () => {
     state.limit = parseInt(limitSel.value, 10) || 12;
-    loadDogs();
+    loadView();
   });
 
-  // Primera carga
-  loadDogs();
+  // Inicial
+  setActiveTab('images');
+  loadView();
 });

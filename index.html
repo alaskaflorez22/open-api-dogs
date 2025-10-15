@@ -12,15 +12,21 @@
     <header class="header">
       <h1>Dog Breeds (TheDogAPI)</h1>
 
+      <nav class="tabs" aria-label="Views">
+        <button id="tab-images" aria-pressed="true">Images</button>
+        <button id="tab-breeds" aria-pressed="false">Breeds</button>
+      </nav>
+
+
       <div class="toolbar">
-        <!-- Buscar por nombre de raza -->
+        <!-- Name breed -->
         <form id="search-form" class="search" autocomplete="off">
           <input id="q" type="search" placeholder="Search breed (e.g., labrador)" aria-label="Search breed" />
           <button type="submit" aria-label="Run search">Search</button>
           <button id="clear" type="button" aria-label="Clear search">Clear</button>
         </form>
 
-        <!-- Selector de cantidad -->
+        <!-- Quantity selector -->
         <label class="limit">
           <span>Limit:</span>
           <select id="limit" aria-label="Number of results">
